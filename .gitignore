@@ -1,0 +1,17 @@
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+.venv/
+venv/
+.env
+# generated artifacts (reproducible via `make all`)
+data/*.db
+data/*.csv
+models/*.joblib
+models/*.json
+reports/*.json
+.pytest_cache/
+.ruff_cache/
+.ipynb_checkpoints/

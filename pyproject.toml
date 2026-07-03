@@ -1,0 +1,46 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "creditscore"
+version = "0.1.0"
+description = "Predictive scoring engine for automating bank credit eligibility (ETL to deployment)."
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+authors = [{ name = "Credit Scoring Team" }]
+keywords = ["credit-scoring", "machine-learning", "xgboost", "flask", "etl"]
+
+dependencies = [
+    "numpy",
+    "pandas",
+    "scikit-learn",
+    "xgboost",
+    "matplotlib",
+    "seaborn",
+    "scipy",
+    "joblib",
+    "flask",
+]
+
+[project.optional-dependencies]
+dev = ["pytest", "ruff"]
+
+[project.scripts]
+creditscore-train = "creditscore.cli:train_cmd"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.ruff]
+line-length = 95
+target-version = "py310"
+
+[tool.ruff.lint]
+ignore = ["E402"]  # module-level imports after matplotlib.use() are intentional
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+testpaths = ["tests"]
+filterwarnings = ["ignore::FutureWarning", "ignore::UserWarning"]

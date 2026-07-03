@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Credit Eligibility Scoring</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+  <header>
+    <h1>Credit Eligibility Scoring</h1>
+    <p class="subtitle">Enter an applicant profile to get a real-time eligibility decision.</p>
+    <div id="model-badge" class="badge">loading model…</div>
+  </header>
+
+  <main>
+    <form id="score-form">
+      <section class="grid">
+        <fieldset>
+          <legend>Applicant &amp; loan</legend>
+          {% for name, spec in numeric.items() %}
+          <label>
+            <span>{{ spec.desc }}</span>
+            <input type="number" step="any" name="{{ name }}"
+                   min="{{ spec.min }}" max="{{ spec.max }}"
+                   placeholder="{{ spec.min }} – {{ spec.max }}">
+          </label>
+          {% endfor %}
+          {% for name, options in categorical.items() %}
+          <label>
+            <span>{{ name.replace('_', ' ') }}</span>
+            <select name="{{ name }}">
+              {% for opt in options %}
+              <option value="{{ opt }}">{{ opt.replace('_', ' ') }}</option>
+              {% endfor %}
+            </select>
+          </label>
+          {% endfor %}
+        </fieldset>
+      </section>
+
+      <div class="actions">
+        <button type="submit" id="score-btn">Score applicant</button>
+        <button type="button" id="sample-btn" class="secondary">Fill sample</button>
+      </div>
+    </form>
+
+    <aside id="result" class="result hidden">
+      <div class="decision" id="decision">—</div>
+      <div class="gauge"><div class="gauge-fill" id="gauge-fill"></div></div>
+      <div class="prob" id="prob">Probability of default: —</div>
+      <div class="band" id="band">Risk band: —</div>
+      <div class="threshold" id="threshold"></div>
+    </aside>
+  </main>
+
+  <footer>
+    <span>Model outputs are decision-support only. Champion model &amp; metrics on
+    <code>/api/metadata</code>.</span>
+  </footer>
+
+  <script src="{{ url_for('static', filename='app.js') }}"></script>
+</body>
+</html>

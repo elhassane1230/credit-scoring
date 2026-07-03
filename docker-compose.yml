@@ -1,0 +1,10 @@
+services:
+  app:
+    build: .
+    image: creditscore:latest
+    ports:
+      - "5000:5000"
+    volumes:
+      - ./models:/app/models      # persist / mount the trained model
+      - ./data:/app/data
+    restart: unless-stopped
