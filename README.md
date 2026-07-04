@@ -1,15 +1,15 @@
 # Credit Scoring — Predictive Credit-Eligibility Engine
 
-An end-to-end classical-ML system that automates bank credit eligibility, from
-**SQL ETL to a deployed Flask app**. It ingests applicant data from a database,
-cleans and rebalances it, trains and tunes three model families, evaluates them
-with imbalance-aware metrics, runs ablation studies, and serves real-time
-decisions through an interactive web UI.
+An end-to-end classical-ML system that automates credit-default scoring, from
+**SQL ETL to a deployed Flask app**. It ingests client records from a database,
+cleans them, trains and tunes three model families, evaluates them with
+imbalance-aware metrics, runs ablation studies, and serves real-time decisions
+through an interactive web UI.
 
 ```
  SQLite  ──▶  ETL (clean · impute · stratified split · rebalance)
                     │
-                    ├──▶  EDA (correlations · solvency indicators)
+                    ├──▶  EDA (correlations · risk indicators)
                     │
                     └──▶  Train & tune  ┬ Logistic Regression
                                         ├ Random Forest
@@ -21,56 +21,52 @@ decisions through an interactive web UI.
                                               gets APPROVE/DECLINE + risk band
 ```
 
-Because a real, shareable credit dataset with a *known* risk mechanism is hard
-to obtain, the data is **synthetic with a documented data-generating process**
-(`src/creditscore/data/generate.py`). That is a deliberate choice: it lets the
-ablation studies be honest experiments (we control ground truth) rather than
-assertions. The DGP encodes threshold effects and feature interactions, so the
-"tree models beat linear on AUC" and "credit history is a major predictor"
-findings hold *by construction* and are then measured, not assumed.
+**Dataset:** the real **UCI "Default of Credit Card Clients"** dataset (Taiwan,
+30,000 anonymised client records, April–September 2005). Target:
+`default.payment.next.month`. The repayment-history fields (`PAY_1…PAY_6`) are
+the dominant predictive signal, which the ablation studies confirm empirically.
 
 ---
 
 ## Results (all computed by the scripts in this repo)
 
-12,000 applicants, ~18% default rate, stratified 64/16/20 train/val/test.
+30,000 clients, ~22% default rate, stratified 64/16/20 train/val/test.
 Reproduce with `make all`.
 
 ### Model leaderboard (held-out test set)
 
 | Model | Recall | F1 | ROC-AUC | PR-AUC | KS |
 |-------|:------:|:--:|:-------:|:------:|:--:|
-| **Random Forest** (champion) | 0.664 | 0.577 | **0.836** | 0.624 | 0.537 |
-| XGBoost | 0.596 | 0.574 | 0.832 | 0.619 | 0.553 |
-| Logistic Regression | 0.608 | 0.511 | 0.796 | 0.524 | 0.457 |
+| **XGBoost** (champion) | 0.569 | 0.545 | **0.778** | 0.556 | 0.432 |
+| Random Forest | 0.524 | 0.537 | 0.776 | 0.548 | 0.422 |
+| Logistic Regression | 0.491 | 0.496 | 0.710 | 0.492 | 0.363 |
 
 ![ROC curves](reports/figures/model_comparison.png)
 
 Metrics are chosen for an imbalanced, cost-sensitive problem: **Recall**
-(minimise false negatives — approving a loan that defaults is the expensive
+(minimise false negatives — approving a client who defaults is the expensive
 error), **F1** (precision/recall balance), and **ROC-AUC / KS** (ranking power).
 The decision threshold is tuned on validation, not test.
 
 ### Ablation studies
 
 **A · XGBoost vs Logistic Regression.** On identical features, XGBoost reaches
-ROC-AUC **0.817** vs Logistic Regression **0.796** — a **+0.021 AUC** gain from
-capturing the threshold/interaction structure a linear model cannot represent.
-(Random Forest edges XGBoost as overall champion; both trees clearly beat the
-linear baseline.)
+ROC-AUC **0.775** vs Logistic Regression **0.711** — a **+0.064 AUC** gain from
+capturing the non-linear structure of the repayment-status features that a
+linear model on the raw features cannot represent.
 
-**B · Remove the credit-history bundle.** Dropping
-`credit_history_length, num_past_defaults, credit_utilization,
-num_recent_inquiries` collapses F1 from **0.581 → 0.389 (−33%)** — confirming
-credit history is the dominant predictive signal.
+**B · Remove the repayment-history bundle.** Dropping `PAY_1 … PAY_6` and
+retraining drops F1 from **0.538 → 0.473 (−12.1%)** and ROC-AUC by **0.044** —
+confirming payment history is the dominant predictive signal.
 
-**C · Resampling strategy.** Cost-sensitive class weights lift recall
-**0.643 → 0.668** over no rebalancing (a SMOTE-like oversampler does slightly
-worse here) — the right trade for catching more true defaults.
+**C · Resampling strategy.** On this dataset resampling has little effect:
+cost-sensitive class weights give a marginal recall gain (0.540 → 0.545) with
+essentially unchanged AUC, and SMOTE-like oversampling is comparable. Threshold
+tuning on validation already handles most of the imbalance.
 
-**Permutation feature importance** (champion): credit utilisation dominates,
-followed by credit-history length, debt-to-income, age, and past defaults —
-three of the top five are credit-history features, echoing ablation B.
+**Permutation feature importance** (champion): `PAY_1` (last-month repayment
+status) dominates by a wide margin, followed by `PAY_2`, `PAY_3`, `LIMIT_BAL`
+and `PAY_AMT2` — the repayment-history features, corroborating ablation B.
 
 ![Feature importance](reports/figures/feature_importance.png)
 
@@ -82,16 +78,16 @@ three of the top five are credit-history features, echoing ablation B.
 pip install -r requirements.txt && pip install -e .
 
 make all        # data -> train -> eda -> ablation  (writes models/ + reports/)
-make test       # 14 unit tests
+make test       # unit tests
 make app        # http://localhost:5000  (interactive scoring UI)
 ```
 
 Individual stages:
 
 ```bash
-make data       # generate synthetic applicants + load into SQLite
+make data       # load the real dataset into SQLite
 make train      # ETL -> tune 3 models -> select & save champion
-make eda        # correlation heatmap, solvency indicators, class balance
+make eda        # correlation heatmap, risk indicators, class balance
 make ablation   # the three ablation studies + feature importance
 ```
 
@@ -104,10 +100,10 @@ sample*) and get an instant decision. It is backed by a JSON API:
 
 ```bash
 curl -X POST http://localhost:5000/api/score -H "Content-Type: application/json" \
-  -d '{"age":23,"monthly_income":1500,"loan_amount":35000,"debt_to_income":0.7,
-       "credit_utilization":0.95,"num_past_defaults":3,"credit_history_length":2,
-       "home_ownership":"rent","purpose":"business"}'
-# -> {"decision":"DECLINE","probability_default":0.93,"risk_band":"very_high", ...}
+  -d '{"LIMIT_BAL":20000,"AGE":24,"SEX":"male","EDUCATION":"high_school",
+       "MARRIAGE":"single","PAY_1":3,"PAY_2":3,"PAY_3":2,"PAY_4":2,"PAY_5":2,
+       "PAY_6":2,"BILL_AMT1":19000,"PAY_AMT1":0}'
+# -> {"decision":"DECLINE","probability_default":0.92,"risk_band":"very_high", ...}
 ```
 
 | Endpoint | Purpose |
@@ -115,7 +111,7 @@ curl -X POST http://localhost:5000/api/score -H "Content-Type: application/json"
 | `GET /` | Interactive scoring UI |
 | `GET /health` | Liveness + model-present check |
 | `GET /api/metadata` | Champion model + test metrics + threshold |
-| `POST /api/score` | Score one applicant profile |
+| `POST /api/score` | Score one client profile |
 
 Missing fields are allowed — the pipeline's imputers fill them.
 
@@ -128,10 +124,10 @@ src/creditscore/
   schemas.py            single source of truth for features & target
   config.py             paths + data/train hyperparameters
   data/
-    generate.py         synthetic applicant generator (documented DGP)
+    load.py             load & normalise the real UCI credit-card dataset
     database.py         SQLite create + SQL collection ("collecte SQL")
     etl.py              clean · stratified split · SMOTE-like resampler
-  eda/explore.py        correlations, solvency ranking, seaborn figures
+  eda/explore.py        correlations, risk ranking, seaborn figures
   models/
     pipeline.py         preprocessing + model factory + search spaces
     train.py            CV tuning, threshold selection, champion pick
@@ -139,10 +135,10 @@ src/creditscore/
     predict.py          single-profile inference + risk banding
   evaluation/
     metrics.py          recall/precision/F1/ROC-AUC/PR-AUC/KS
-    ablation.py         model-family · credit-history · resampling ablations
+    ablation.py         model-family · payment-history · resampling ablations
   app/                  Flask API + HTML/CSS/JS scoring UI
 scripts/                run_pipeline · run_eda · run_ablation
-tests/                  14 unit tests
+tests/                  unit tests
 ```
 
 ---
@@ -152,7 +148,7 @@ tests/                  14 unit tests
 - **No data leakage.** Imputation, scaling and one-hot encoding live *inside*
   each sklearn `Pipeline`, so they are fit on training folds only and travel
   with the saved model — inference applies identical transforms.
-- **Threshold chosen on validation.** Under 18% prevalence the default 0.5 is
+- **Threshold chosen on validation.** Under ~22% prevalence the default 0.5 is
   rarely optimal; the operating point is selected to maximise validation F1.
 - **Imbalance handled cost-sensitively** by default (class weights /
   `scale_pos_weight`), which needs no synthetic rows; a SMOTE-like oversampler
@@ -160,11 +156,11 @@ tests/                  14 unit tests
 - **Honest evaluation.** Every headline number is produced by the scripts here;
   see [`docs/RESULTS.md`](docs/RESULTS.md) for methodology and
   [`docs/IMPROVEMENTS.md`](docs/IMPROVEMENTS.md) for the roadmap
-  (SHAP explainability, fairness auditing, real-data validation, monitoring).
+  (SHAP explainability, fairness auditing, calibration, monitoring).
 
-> The dataset is synthetic. It proves the pipeline, the modelling choices, and
-> the ablation mechanisms; a real labelled portfolio is required to certify
-> production accuracy and to run the fairness checks described in the roadmap.
+> This is a public research dataset. Absolute metrics reflect this portfolio;
+> deploying to a new population would require re-training, calibration, and the
+> fairness checks described in the roadmap.
 
 ## Tech stack
 
@@ -173,4 +169,4 @@ Logistic Regression · Matplotlib · Seaborn · Flask · SQL (SQLite) · HTML/CS
 
 ## License
 
-MIT.
+MIT. Dataset © UCI Machine Learning Repository (public use).
