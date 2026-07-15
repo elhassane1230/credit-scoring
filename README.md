@@ -1,4 +1,4 @@
-# Credit Scoring — Predictive Credit-Eligibility Engine
+# Credit Scoring: Predictive Credit-Eligibility Engine
 
 An end-to-end classical-ML system that automates credit-default scoring, from
 **SQL ETL to a deployed Flask app**. It ingests client records from a database,
@@ -44,19 +44,19 @@ Reproduce with `make all`.
 ![ROC curves](reports/figures/model_comparison.png)
 
 Metrics are chosen for an imbalanced, cost-sensitive problem: **Recall**
-(minimise false negatives — approving a client who defaults is the expensive
+(minimise false negatives, approving a client who defaults is the expensive
 error), **F1** (precision/recall balance), and **ROC-AUC / KS** (ranking power).
 The decision threshold is tuned on validation, not test.
 
 ### Ablation studies
 
 **A · XGBoost vs Logistic Regression.** On identical features, XGBoost reaches
-ROC-AUC **0.775** vs Logistic Regression **0.711** — a **+0.064 AUC** gain from
+ROC-AUC **0.775** vs Logistic Regression **0.711**, a **+0.064 AUC** gain from
 capturing the non-linear structure of the repayment-status features that a
 linear model on the raw features cannot represent.
 
 **B · Remove the repayment-history bundle.** Dropping `PAY_1 … PAY_6` and
-retraining drops F1 from **0.538 → 0.473 (−12.1%)** and ROC-AUC by **0.044** —
+retraining drops F1 from **0.538 → 0.473 (−12.1%)** and ROC-AUC by **0.044**,
 confirming payment history is the dominant predictive signal.
 
 **C · Resampling strategy.** On this dataset resampling has little effect:
@@ -66,7 +66,7 @@ tuning on validation already handles most of the imbalance.
 
 **Permutation feature importance** (champion): `PAY_1` (last-month repayment
 status) dominates by a wide margin, followed by `PAY_2`, `PAY_3`, `LIMIT_BAL`
-and `PAY_AMT2` — the repayment-history features, corroborating ablation B.
+and `PAY_AMT2`, the repayment-history features, corroborating ablation B.
 
 ![Feature importance](reports/figures/feature_importance.png)
 
@@ -113,7 +113,7 @@ curl -X POST http://localhost:5000/api/score -H "Content-Type: application/json"
 | `GET /api/metadata` | Champion model + test metrics + threshold |
 | `POST /api/score` | Score one client profile |
 
-Missing fields are allowed — the pipeline's imputers fill them.
+Missing fields are allowed, the pipeline's imputers fill them.
 
 ---
 
@@ -147,7 +147,7 @@ tests/                  unit tests
 
 - **No data leakage.** Imputation, scaling and one-hot encoding live *inside*
   each sklearn `Pipeline`, so they are fit on training folds only and travel
-  with the saved model — inference applies identical transforms.
+  with the saved model, inference applies identical transforms.
 - **Threshold chosen on validation.** Under ~22% prevalence the default 0.5 is
   rarely optimal; the operating point is selected to maximise validation F1.
 - **Imbalance handled cost-sensitively** by default (class weights /
